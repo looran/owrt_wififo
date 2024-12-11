@@ -29,6 +29,7 @@ network_read() {
 network_onair() {
 	scan="/tmp/wififo.scan.$iface"
 	[ ! -e $scan -o $(date "+%s") -gt $(($(date -r $scan "+%s") + $SLEEP_SCANS)) ] \
+		&& echo performing wifi scan \
 		&& trace iw dev $iface scan > $scan
 	[ ! -s $scan ] \
 		&& rm $scan \
@@ -63,6 +64,7 @@ wait_ci_or_better_network() {
 		for i in $(seq 1 3); do
 			trace ping -q -c2 -w3 8.8.8.8 >/dev/null \
 				&& break
+			echo ping $i failed
 			sleep $(($SLEEP_ERROR / i))
 			i=0
 		done
