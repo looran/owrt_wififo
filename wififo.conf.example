@@ -1,0 +1,9 @@
+- BigSSID
+ThisIsAComplexWPAKey
+wlan0 wifinet1 psk2
+- OtherSSID
+LittleKeyKey
+wlan0 wifinet1 psk2
+# IgnoredNetwork
+mypskmypsk
+wlan0 wifinet1 psk2

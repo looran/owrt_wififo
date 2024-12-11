@@ -1,0 +1,123 @@
+#!/bin/sh /etc/rc.common
+# wififo - OpenWRT daemon for WAN multi-wifi failover
+
+VERSION=0.2
+START=99
+EXTRA_COMMANDS=main
+CONF=/etc/wififo.conf
+LOG=/tmp/wififo.log
+SLEEP_SCANS=120
+SLEEP_TESTS=15
+SLEEP_ERROR=15
+VERBOSE=${VERBOSE:-0}
+
+trace() { [ $VERBOSE -eq 1 ] && echo "$ $*" >&2; "$@"; }
+
+network_read() {
+	position=$1
+	line=$(($position * 3 + 1))
+	mark=$(tail -n +$line $CONF |head -n1 |cut -d' ' -f1)
+	[ "$mark" != "-" ] \
+		&& return 1
+	ssid=$(tail -n +$line $CONF |head -n1 |cut -d' ' -f2-)
+	key=$(tail -n +$((line+1)) $CONF |head -n1)
+	iface=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f1)
+	wname=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f2)
+	encryption=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f3)
+}
+
+network_onair() {
+	scan="/tmp/wififo.scan.$iface"
+	[ ! -e $scan -o $(date "+%s") -gt $(($(date -r $scan "+%s") + $SLEEP_SCANS)) ] \
+		&& trace iw dev $iface scan > $scan
+	[ ! -s $scan ] \
+		&& rm $scan \
+		&& return 1
+	egrep -q "SSID: $ssid$" $scan && return 0
+	return 1
+}
+
+network_connect () {
+	echo == network connect $network_current $ssid $iface $wname $encryption $(date)
+	trace uci set wireless.$wname.ssid=$ssid
+	trace uci set wireless.$wname.encryption=$encryption
+	trace uci set wireless.$wname.key=$key
+	trace uci set wireless.$wname.disabled='0'
+	trace uci commit
+	trace wifi
+	sleep 2
+	for i in $(seq 1 10); do
+		ip l show $iface |head -n1 |grep -q LOWER_UP \
+			&& ip a show dev $iface |egrep -q "inet[6]?" \
+			&& break
+		sleep 1
+	done
+}
+
+wait_ci_or_better_network() {
+	network_last_active=$network_current
+	current_wname=$wname
+	while :; do
+		echo - test $(date)
+		iw dev $iface link |egrep 'SSID|signal|bitrate'
+		for i in $(seq 1 3); do
+			trace ping -q -c2 -w3 8.8.8.8 >/dev/null \
+				&& break
+			sleep $(($SLEEP_ERROR / i))
+			i=0
+		done
+		[ $i -eq 0 ] \
+			&& return
+		for testnet in $(seq 0 $(($network_current-1))); do
+			network_read $testnet \
+				&& network_onair \
+				&& trace uci set wireless.$current_wname.disabled='1' \
+				&& network_current=$((testnet - 1)) \
+				&& return
+		done
+		trace sleep $SLEEP_TESTS
+	done
+}
+
+main() {
+	echo wififo v$VERSION start
+	network_current=0
+	network_last_active=0
+	networks_count=$(($(wc -l $CONF |cut -d' ' -f1) / 3))
+	echo $networks_count networks found
+	[ $networks_count -lt 1 ] && exit 1
+
+	while :; do
+		network_read $network_current \
+			&& network_onair \
+			&& network_connect \
+			&& wait_ci_or_better_network
+
+		network_current=$((network_current + 1))
+		[ $network_current -gt $(($networks_count-1)) ] \
+			&& network_current=0
+		[ $network_last_active -eq $network_current ] \
+			&& echo no network found \
+			&& sleep $SLEEP_ERROR \
+			&& rm /tmp/wififo.scan.$iface
+	done
+
+	echo wififo exit
+	exit 0
+}
+ 
+start() {
+	pid=$(ps |egrep "\{[w]ififo\} /bin/sh .*(start|boot)$" |tail -n +3)
+	[ ! -z "$pid" ] \
+		&& echo already started \
+		&& exit 1
+	echo start
+        (main >$LOG 2>&1 )&
+}                 
+ 
+stop() {          
+        echo stop
+	pid=$(ps |egrep "\{[w]ififo\} /bin/sh .*(start|boot)$" |head -n1 |awk '{print $1}')
+	[ ! -z "$pid" ] \
+		&& kill $pid
+}
