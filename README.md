@@ -3,6 +3,7 @@ wififo - OpenWRT daemon for WAN multi-wifi failover
 Features
 - user list of wifi networks ssid and keys, ordered by priority
 - scans wifi APs and connect to the most prioritized
+- allow specifying [SQM](https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm) download/upload values per wifi
 - continuously tests connectivity (ICMP)
 - continuously tests if a higher-priority wifi becomes available
 - no extra OpenWRT modifications needed, wififo sets current wifi network via regular `uci` commands
@@ -30,7 +31,7 @@ The list of wifi networks is provided through `/etc/wififo.conf` with this forma
 ```
 - <ssid>
 <psk>
-<network_interface> <openwrt_interface_name> <encryption>
+<network_interface> <openwrt_interface_name> <encryption> [<sqm_download> [<sqm_upload>]]
 ```
 
 The networks must be specified in order of priority.

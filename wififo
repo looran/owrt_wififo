@@ -1,7 +1,7 @@
 #!/bin/sh /etc/rc.common
 # wififo - OpenWRT daemon for WAN multi-wifi failover
 
-VERSION=0.2
+VERSION=0.3
 START=99
 EXTRA_COMMANDS=main
 CONF=/etc/wififo.conf
@@ -24,6 +24,8 @@ network_read() {
 	iface=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f1)
 	wname=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f2)
 	encryption=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f3)
+	sqm_dl=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f4)
+	sqm_ul=$(tail -n +$((line+2)) $CONF |head -n1 |cut -d' ' -f5)
 }
 
 network_onair() {
@@ -44,6 +46,11 @@ network_connect () {
 	trace uci set wireless.$wname.encryption=$encryption
 	trace uci set wireless.$wname.key=$key
 	trace uci set wireless.$wname.disabled='0'
+	sqm_iface=$(uci show sqm |grep "interface='phy1-sta0'" |sed "s/sqm\.\([^.]*\)\.interface='phy1-sta0'/\1/")
+	[ ! -z "$sqm_iface" -a ! -z $sqm_dl ] \
+		&& trace uci set sqm.$sqm_iface.download=$sqm_dl
+	[ ! -z "$sqm_iface" -a ! -z $sqm_ul ] \
+		&& trace uci set sqm.$sqm_iface.upload=$sqm_ul
 	trace uci commit
 	trace wifi
 	sleep 2
