@@ -46,7 +46,7 @@ network_connect () {
 	trace uci set wireless.$wname.encryption=$encryption
 	trace uci set wireless.$wname.key=$key
 	trace uci set wireless.$wname.disabled='0'
-	sqm_iface=$(uci show sqm |grep "interface='phy1-sta0'" |sed "s/sqm\.\([^.]*\)\.interface='phy1-sta0'/\1/")
+	sqm_iface=$(uci show sqm |grep "interface='$iface'" |sed "s/sqm\.\([^.]*\)\.interface='$iface'/\1/")
 	[ ! -z "$sqm_iface" -a ! -z $sqm_dl ] \
 		&& trace uci set sqm.$sqm_iface.download=$sqm_dl
 	[ ! -z "$sqm_iface" -a ! -z $sqm_ul ] \
